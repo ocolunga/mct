@@ -107,38 +107,46 @@ jobs:
           echo "sha256=$SHA256" >> $GITHUB_OUTPUT
           echo "Calculated SHA256: $SHA256"
 
-      - name: Clone homebrew-mct tap
-        run: |
-          git clone https://x-access-token:${{ secrets.HOMEBREW_TAP_TOKEN }}@github.com/ocolunga/homebrew-mct.git tap
-
       - name: Set up Homebrew
         uses: Homebrew/actions/setup-homebrew@master
 
-      - name: Update formula
+      - name: Tap and update formula
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           SHA256="${{ steps.sha.outputs.sha256 }}"
           URL="https://github.com/ocolunga/mct/releases/download/v${VERSION}/mct-${VERSION}.tar.gz"
-          FORMULA="tap/Formula/mct.rb"
 
-          # Update URL
+          # Tap the repo (installs to proper Homebrew location)
+          brew tap ocolunga/mct
+
+          # Get the tap directory
+          TAP_DIR="$(brew --prefix)/Library/Taps/ocolunga/homebrew-mct"
+          FORMULA="$TAP_DIR/Formula/mct.rb"
+
+          # Update URL and SHA256
           sed -i '' "s|url \".*\"|url \"${URL}\"|" "$FORMULA"
-
-          # Update SHA256
           sed -i '' "s|sha256 \".*\"|sha256 \"${SHA256}\"|" "$FORMULA"
 
           # Update Python resource dependencies
-          cd tap
-          brew update-python-resources Formula/mct.rb --ignore-non-pypi-packages
+          brew update-python-resources ocolunga/mct/mct --ignore-non-pypi-packages
 
           echo "Updated formula:"
-          cat Formula/mct.rb
+          cat "$FORMULA"
 
       - name: Commit and push
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
         run: |
-          cd tap
+          TAP_DIR="$(brew --prefix)/Library/Taps/ocolunga/homebrew-mct"
+          cd "$TAP_DIR"
+
+          # Configure git with token for push
+          git remote set-url origin "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/ocolunga/homebrew-mct.git"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
           git add Formula/mct.rb
           git diff --staged --quiet || git commit -m "Update mct to ${{ steps.version.outputs.version }}"
           git push
