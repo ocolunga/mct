@@ -15,10 +15,10 @@ uv sync --group dev
 # Run the CLI
 uv run mct --help
 
-# Type checking
+# Type checking (ty)
 uv run ty check src/
 
-# Linting
+# Linting and formatting (ruff)
 uv run ruff check src/
 uv run ruff format src/
 ```
