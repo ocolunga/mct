@@ -1,3 +1,3 @@
 """macOS Configuration Tools - A CLI for managing macOS settings declaratively."""
 
-__version__ = "0.1.2"
+__version__ = "0.2.0"

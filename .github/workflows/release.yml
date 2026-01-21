@@ -1,0 +1,149 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: ".python-version"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Validate version matches pyproject.toml
+        run: |
+          EXPECTED="${{ steps.version.outputs.version }}"
+          ACTUAL=$(grep -E "^version\s*=" pyproject.toml | sed -E 's/.*"([^"]+)".*/\1/')
+
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "Error: Tag version ($EXPECTED) doesn't match pyproject.toml ($ACTUAL)"
+            exit 1
+          fi
+          echo "Version validated: $EXPECTED"
+
+      - name: Build package
+        run: uv build
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+
+          cat > release_notes.md << 'EOF'
+          ## Installation
+
+          ### Homebrew (recommended)
+          ```bash
+          brew tap ocolunga/mct
+          brew install mct
+          ```
+
+          ### pip
+          ```bash
+          pip install mct
+          ```
+
+          ### uv
+          ```bash
+          uv tool install mct
+          ```
+          EOF
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "v${{ steps.version.outputs.version }}"
+          body_path: release_notes.md
+          files: |
+            dist/*.whl
+            dist/*.tar.gz
+
+      - name: Upload tarball for Homebrew
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+
+  update-homebrew:
+    needs: release
+    runs-on: macos-latest
+
+    steps:
+      - name: Download tarball
+        uses: actions/download-artifact@v4
+        with:
+          name: sdist
+          path: dist
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Calculate SHA256
+        id: sha
+        run: |
+          TARBALL=$(ls dist/*.tar.gz)
+          SHA256=$(shasum -a 256 "$TARBALL" | cut -d ' ' -f 1)
+          echo "sha256=$SHA256" >> $GITHUB_OUTPUT
+          echo "Calculated SHA256: $SHA256"
+
+      - name: Clone homebrew-mct tap
+        run: |
+          git clone https://x-access-token:${{ secrets.HOMEBREW_TAP_TOKEN }}@github.com/ocolunga/homebrew-mct.git tap
+
+      - name: Set up Homebrew
+        uses: Homebrew/actions/setup-homebrew@master
+
+      - name: Update formula
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          SHA256="${{ steps.sha.outputs.sha256 }}"
+          URL="https://github.com/ocolunga/mct/releases/download/v${VERSION}/mct-${VERSION}.tar.gz"
+          FORMULA="tap/Formula/mct.rb"
+
+          # Update URL
+          sed -i '' "s|url \".*\"|url \"${URL}\"|" "$FORMULA"
+
+          # Update SHA256
+          sed -i '' "s|sha256 \".*\"|sha256 \"${SHA256}\"|" "$FORMULA"
+
+          # Update Python resource dependencies
+          cd tap
+          brew update-python-resources Formula/mct.rb --ignore-non-pypi-packages
+
+          echo "Updated formula:"
+          cat Formula/mct.rb
+
+      - name: Commit and push
+        run: |
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/mct.rb
+          git diff --staged --quiet || git commit -m "Update mct to ${{ steps.version.outputs.version }}"
+          git push
