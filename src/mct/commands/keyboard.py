@@ -1,62 +1,72 @@
+"""Keyboard settings management."""
+
+from typing import Optional
+
 import typer
-import subprocess
+
+from ..defaults import read, write
 
 keyboard_app = typer.Typer()
 
-@keyboard_app.command()
-def hold():
-    """Enable key hold for accented characters."""
-    try:
-        subprocess.run(
-            ["defaults", "write", "-g", "ApplePressAndHoldEnabled", "-bool", "true"],
-            check=True,
-        )
-        typer.echo("✓ Key hold for accents enabled")
-        typer.echo("Note: You may need to restart applications")
-    except subprocess.CalledProcessError as e:
-        typer.echo(f"Error enabling key hold: {e}", err=True)
-        raise typer.Exit(1)
+ON_VALUES = ("on", "true", "1", "yes")
+OFF_VALUES = ("off", "false", "0", "no")
+
+
+def parse_bool(value: str) -> bool | None:
+    """Parse a boolean string value."""
+    if value.lower() in ON_VALUES:
+        return True
+    if value.lower() in OFF_VALUES:
+        return False
+    return None
 
 
 @keyboard_app.command()
-def repeat():
-    """Enable key repeat (disables hold for accents)."""
-    try:
-        subprocess.run(
-            ["defaults", "write", "-g", "ApplePressAndHoldEnabled", "-bool", "false"],
-            check=True,
-        )
-        typer.echo("✓ Key repeat enabled (hold for accents disabled)")
-        typer.echo("Note: You may need to restart applications")
-    except subprocess.CalledProcessError as e:
-        typer.echo(f"Error enabling key repeat: {e}", err=True)
+def repeat(value: Optional[str] = typer.Argument(None, help="on/off")):
+    """Get or set key repeat (off = press-and-hold for accents)."""
+    if value is None:
+        # ApplePressAndHoldEnabled=true means repeat is OFF (accents ON)
+        press_hold = read("NSGlobalDomain", "ApplePressAndHoldEnabled")
+        typer.echo("off" if press_hold else "on")
+        return
+
+    parsed = parse_bool(value)
+    if parsed is None:
+        typer.echo("Error: use 'on' or 'off'")
         raise typer.Exit(1)
+
+    # Invert: repeat on = press-and-hold off
+    write("NSGlobalDomain", "ApplePressAndHoldEnabled", not parsed, "bool")
+    if parsed:
+        typer.echo("Key repeat enabled (press-and-hold for accents disabled)")
+    else:
+        typer.echo("Key repeat disabled (press-and-hold for accents enabled)")
+    typer.echo("Note: restart apps to apply")
+
+
+SETTINGS_MAP = {
+    "repeat": ("NSGlobalDomain", "ApplePressAndHoldEnabled", "bool", True),  # True = repeat OFF
+}
 
 
 @keyboard_app.command()
-def reset(
-    hold: bool = typer.Option(False, "-h", "--hold", help="Reset key hold to default (enabled)"),
-    all: bool = typer.Option(False, "-a", "--all", help="Reset all keyboard settings to defaults"),
-):
-    """Reset keyboard settings. Must specify -h (hold) or -a (all)."""
-    if not any([hold, all]):
-        typer.echo("Error: Must specify either -h (hold) or -a (all)")
+def reset(setting: Optional[str] = typer.Argument(None, help="Setting to reset (or omit for all)")):
+    """Reset keyboard settings to macOS defaults."""
+    if setting is None:
+        for name, (domain, key, vtype, default) in SETTINGS_MAP.items():
+            write(domain, key, default, vtype)
+            # Default is press-and-hold ON (repeat OFF)
+            typer.echo(f"  {name}: reset to off (press-and-hold enabled)")
+        typer.echo("All keyboard settings reset")
+        typer.echo("Note: restart apps to apply")
+        return
+
+    if setting not in SETTINGS_MAP:
+        typer.echo(f"Error: unknown setting '{setting}'")
+        typer.echo(f"Available: {', '.join(SETTINGS_MAP.keys())}")
         raise typer.Exit(1)
 
-    try:
-        if hold or all:
-            # Reset press-and-hold to default (enabled)
-            subprocess.run(
-                ["defaults", "write", "-g", "ApplePressAndHoldEnabled", "-bool", "true"],
-                check=True,
-            )
-            typer.echo("✓ Key hold reset to default (enabled)")
-            
-        if all:
-            # Add more keyboard settings here as they are implemented
-            pass
-
-        typer.echo("Note: You may need to restart applications")
-    except subprocess.CalledProcessError as e:
-        typer.echo(f"Error resetting keyboard settings: {e}", err=True)
-        raise typer.Exit(1)
+    domain, key, vtype, default = SETTINGS_MAP[setting]
+    write(domain, key, default, vtype)
+    typer.echo(f"Keyboard {setting} reset to off (press-and-hold enabled)")
+    typer.echo("Note: restart apps to apply")
