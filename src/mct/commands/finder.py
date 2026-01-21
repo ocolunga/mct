@@ -1,78 +1,96 @@
 """Finder settings management."""
 
+from typing import Optional
+
 import typer
 
 from ..defaults import read, write, restart_app
 
 finder_app = typer.Typer()
 
+ON_VALUES = ("on", "true", "1", "yes")
+OFF_VALUES = ("off", "false", "0", "no")
+
+
+def parse_bool(value: str) -> bool | None:
+    """Parse a boolean string value."""
+    if value.lower() in ON_VALUES:
+        return True
+    if value.lower() in OFF_VALUES:
+        return False
+    return None
+
 
 @finder_app.command()
-def extensions(
-    show: bool = typer.Option(None, "--show/--hide", help="Show or hide file extensions"),
-):
-    """Show or hide all file extensions."""
-    if show is None:
+def extensions(value: Optional[str] = typer.Argument(None, help="on/off")):
+    """Get or set showing all file extensions."""
+    if value is None:
         current = read("NSGlobalDomain", "AppleShowAllExtensions")
-        status = "shown" if current else "hidden"
-        typer.echo(f"File extensions are currently {status}")
+        typer.echo("on" if current else "off")
         return
 
-    write("NSGlobalDomain", "AppleShowAllExtensions", show, "bool")
+    parsed = parse_bool(value)
+    if parsed is None:
+        typer.echo("Error: use 'on' or 'off'")
+        raise typer.Exit(1)
+
+    write("NSGlobalDomain", "AppleShowAllExtensions", parsed, "bool")
     restart_app("Finder")
-    status = "shown" if show else "hidden"
-    typer.echo(f"File extensions are now {status}")
+    typer.echo(f"File extensions {'shown' if parsed else 'hidden'}")
 
 
 @finder_app.command()
-def hidden(
-    show: bool = typer.Option(None, "--show/--hide", help="Show or hide hidden files"),
-):
-    """Show or hide hidden files (dotfiles)."""
-    if show is None:
+def hidden(value: Optional[str] = typer.Argument(None, help="on/off")):
+    """Get or set showing hidden files (dotfiles)."""
+    if value is None:
         current = read("com.apple.finder", "AppleShowAllFiles")
-        status = "shown" if current else "hidden"
-        typer.echo(f"Hidden files are currently {status}")
+        typer.echo("on" if current else "off")
         return
 
-    write("com.apple.finder", "AppleShowAllFiles", show, "bool")
+    parsed = parse_bool(value)
+    if parsed is None:
+        typer.echo("Error: use 'on' or 'off'")
+        raise typer.Exit(1)
+
+    write("com.apple.finder", "AppleShowAllFiles", parsed, "bool")
     restart_app("Finder")
-    status = "shown" if show else "hidden"
-    typer.echo(f"Hidden files are now {status}")
+    typer.echo(f"Hidden files {'shown' if parsed else 'hidden'}")
 
 
 @finder_app.command()
-def pathbar(
-    show: bool = typer.Option(None, "--show/--hide", help="Show or hide path bar"),
-):
-    """Show or hide the path bar at the bottom of Finder windows."""
-    if show is None:
+def pathbar(value: Optional[str] = typer.Argument(None, help="on/off")):
+    """Get or set showing path bar at bottom."""
+    if value is None:
         current = read("com.apple.finder", "ShowPathbar")
-        status = "shown" if current else "hidden"
-        typer.echo(f"Path bar is currently {status}")
+        typer.echo("on" if current else "off")
         return
 
-    write("com.apple.finder", "ShowPathbar", show, "bool")
+    parsed = parse_bool(value)
+    if parsed is None:
+        typer.echo("Error: use 'on' or 'off'")
+        raise typer.Exit(1)
+
+    write("com.apple.finder", "ShowPathbar", parsed, "bool")
     restart_app("Finder")
-    status = "shown" if show else "hidden"
-    typer.echo(f"Path bar is now {status}")
+    typer.echo(f"Path bar {'shown' if parsed else 'hidden'}")
 
 
 @finder_app.command()
-def statusbar(
-    show: bool = typer.Option(None, "--show/--hide", help="Show or hide status bar"),
-):
-    """Show or hide the status bar at the bottom of Finder windows."""
-    if show is None:
+def statusbar(value: Optional[str] = typer.Argument(None, help="on/off")):
+    """Get or set showing status bar at bottom."""
+    if value is None:
         current = read("com.apple.finder", "ShowStatusBar")
-        status = "shown" if current else "hidden"
-        typer.echo(f"Status bar is currently {status}")
+        typer.echo("on" if current else "off")
         return
 
-    write("com.apple.finder", "ShowStatusBar", show, "bool")
+    parsed = parse_bool(value)
+    if parsed is None:
+        typer.echo("Error: use 'on' or 'off'")
+        raise typer.Exit(1)
+
+    write("com.apple.finder", "ShowStatusBar", parsed, "bool")
     restart_app("Finder")
-    status = "shown" if show else "hidden"
-    typer.echo(f"Status bar is now {status}")
+    typer.echo(f"Status bar {'shown' if parsed else 'hidden'}")
 
 
 VIEW_STYLES = {
@@ -85,59 +103,51 @@ VIEW_STYLES_REVERSE = {v: k for k, v in VIEW_STYLES.items()}
 
 
 @finder_app.command()
-def view(
-    style: str = typer.Argument(
-        None, help="View style: icon, list, column, gallery"
-    ),
-):
-    """Set the default Finder view style."""
+def view(style: Optional[str] = typer.Argument(None, help="icon/list/column/gallery")):
+    """Get or set default Finder view style."""
     if style is None:
         current = read("com.apple.finder", "FXPreferredViewStyle")
-        style_name = VIEW_STYLES_REVERSE.get(current, current)
-        typer.echo(f"Default view style: {style_name}")
+        name = VIEW_STYLES_REVERSE.get(current, current or "icon")
+        typer.echo(name)
         return
 
-    if style not in VIEW_STYLES:
-        typer.echo(f"Invalid view style. Choose from: {', '.join(VIEW_STYLES.keys())}")
+    if style.lower() not in VIEW_STYLES:
+        typer.echo(f"Error: use {', '.join(VIEW_STYLES.keys())}")
         raise typer.Exit(1)
 
-    write("com.apple.finder", "FXPreferredViewStyle", VIEW_STYLES[style], "string")
+    write("com.apple.finder", "FXPreferredViewStyle", VIEW_STYLES[style.lower()], "string")
     restart_app("Finder")
-    typer.echo(f"Default view style set to: {style}")
+    typer.echo(f"Default view set to {style.lower()}")
+
+
+SETTINGS_MAP = {
+    "extensions": ("NSGlobalDomain", "AppleShowAllExtensions", "bool", True),
+    "hidden": ("com.apple.finder", "AppleShowAllFiles", "bool", False),
+    "pathbar": ("com.apple.finder", "ShowPathbar", "bool", False),
+    "statusbar": ("com.apple.finder", "ShowStatusBar", "bool", False),
+    "view": ("com.apple.finder", "FXPreferredViewStyle", "string", "icnv"),
+}
 
 
 @finder_app.command()
-def reset(
-    extensions: bool = typer.Option(False, "-e", "--extensions", help="Reset file extensions visibility"),
-    hidden: bool = typer.Option(False, "-h", "--hidden", help="Reset hidden files visibility"),
-    pathbar: bool = typer.Option(False, "-p", "--pathbar", help="Reset path bar visibility"),
-    statusbar: bool = typer.Option(False, "-s", "--statusbar", help="Reset status bar visibility"),
-    view: bool = typer.Option(False, "-v", "--view", help="Reset default view style"),
-    all: bool = typer.Option(False, "-a", "--all", help="Reset all Finder settings"),
-):
-    """Reset Finder settings to defaults."""
-    if not any([extensions, hidden, pathbar, statusbar, view, all]):
-        typer.echo("Error: Must specify at least one flag or -a for all")
+def reset(setting: Optional[str] = typer.Argument(None, help="Setting to reset (or omit for all)")):
+    """Reset Finder settings to macOS defaults."""
+    if setting is None:
+        for name, (domain, key, vtype, default) in SETTINGS_MAP.items():
+            write(domain, key, default, vtype)
+            display = default if vtype != "bool" else ("on" if default else "off")
+            typer.echo(f"  {name}: reset to {display}")
+        restart_app("Finder")
+        typer.echo("All Finder settings reset")
+        return
+
+    if setting not in SETTINGS_MAP:
+        typer.echo(f"Error: unknown setting '{setting}'")
+        typer.echo(f"Available: {', '.join(SETTINGS_MAP.keys())}")
         raise typer.Exit(1)
 
-    if extensions or all:
-        write("NSGlobalDomain", "AppleShowAllExtensions", True, "bool")
-        typer.echo("File extensions: reset to shown")
-
-    if hidden or all:
-        write("com.apple.finder", "AppleShowAllFiles", False, "bool")
-        typer.echo("Hidden files: reset to hidden")
-
-    if pathbar or all:
-        write("com.apple.finder", "ShowPathbar", False, "bool")
-        typer.echo("Path bar: reset to hidden")
-
-    if statusbar or all:
-        write("com.apple.finder", "ShowStatusBar", False, "bool")
-        typer.echo("Status bar: reset to hidden")
-
-    if view or all:
-        write("com.apple.finder", "FXPreferredViewStyle", "icnv", "string")
-        typer.echo("Default view: reset to icon")
-
+    domain, key, vtype, default = SETTINGS_MAP[setting]
+    write(domain, key, default, vtype)
     restart_app("Finder")
+    display = default if vtype != "bool" else ("on" if default else "off")
+    typer.echo(f"Finder {setting} reset to {display}")
