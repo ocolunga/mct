@@ -4,19 +4,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-mct (macOS Configuration Tools) is a CLI tool for managing macOS settings. It uses Typer for the CLI framework and subprocess calls to `defaults` for modifying macOS preferences.
+mct (macOS Configuration Tools) is a declarative CLI tool for managing macOS settings, inspired by nix-darwin. It uses Typer for the CLI framework and subprocess calls to `defaults` for modifying macOS preferences.
 
 ## Development Commands
 
 ```bash
 # Install dependencies (uses uv)
-uv pip install -e ".[dev]"
+uv sync --group dev
 
 # Run the CLI
 uv run mct --help
 
 # Type checking
-uv run mypy src/
+uv run ty check src/
 
 # Linting
 uv run ruff check src/
@@ -25,19 +25,44 @@ uv run ruff format src/
 
 ## Architecture
 
-The CLI follows a command-group pattern using Typer:
+### Core Modules
 
-- `src/mct/cli.py` - Main entry point, creates the Typer app and registers command groups
-- `src/mct/commands/` - Each file exports a `typer.Typer()` instance that gets added via `app.add_typer()`
-  - `dock.py` - Dock settings (size, auto-hide, lock)
-  - `keyboard.py` - Keyboard settings (key hold/repeat)
-  - `system.py` - System settings (Touch ID for sudo)
+- `src/mct/cli.py` - Main entry point, registers command groups and declarative commands (apply, export, diff, init, settings)
+- `src/mct/config.py` - Configuration management: YAML loading/saving, settings registry, diff computation
+- `src/mct/defaults.py` - Low-level helper for macOS `defaults` read/write/delete operations
 
-### Adding New Commands
+### Command Groups
 
-1. For a new command in an existing group, add a function decorated with `@<group>_app.command()` in the appropriate file
-2. For a new command group, create a new file in `commands/`, export a `typer.Typer()` instance, and register it in `cli.py` with `app.add_typer()`
+Each file in `src/mct/commands/` exports a `typer.Typer()` instance registered in `cli.py`:
+- `dock.py` - Dock settings (size, auto-hide, lock)
+- `finder.py` - Finder settings (extensions, hidden files, path bar, view style)
+- `keyboard.py` - Keyboard settings (key hold/repeat)
+- `screenshot.py` - Screenshot settings (location, format, shadow)
+- `system.py` - System settings (Touch ID for sudo)
 
-### macOS Settings Pattern
+### Settings Registry
 
-Commands modify settings via `subprocess.run()` calling `defaults write/read`. Many dock commands require `killall Dock` afterward to apply changes.
+All declarative settings are defined in `config.py` in the `SETTINGS` dict. Each setting specifies:
+- `domain`: The macOS defaults domain (e.g., `com.apple.dock`)
+- `key`: The defaults key
+- `value_type`: Type hint (`bool`, `int`, `float`, `string`)
+- `restart_app`: App to restart after changing (e.g., `Dock`, `Finder`)
+
+### Adding New Settings
+
+1. Add the setting to `SETTINGS` dict in `config.py`
+2. Optionally add an imperative command in the appropriate `commands/*.py` file
+
+### Config File
+
+Users can define desired state in `~/.config/mct/config.yaml`:
+```yaml
+dock:
+  size: 48
+  autohide: true
+finder:
+  show_extensions: true
+  show_path_bar: true
+```
+
+Then apply with `mct apply` or preview changes with `mct diff`.
