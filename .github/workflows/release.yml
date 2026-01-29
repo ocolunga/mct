@@ -154,10 +154,10 @@ jobs:
           cat "$FORMULA"
 
       - name: Update Python resource dependencies
-        continue-on-error: true
         run: |
-          # Update Python dependencies from PyPI
-          brew update-python-resources ocolunga/macos-config-tools/macos-config-tools || true
+          echo "Updating Python resources..."
+          brew update-python-resources ocolunga/macos-config-tools/macos-config-tools
+          echo "Resources updated successfully"
 
       - name: Commit and push
         env:
