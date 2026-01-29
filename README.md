@@ -71,62 +71,22 @@ brew tap ocolunga/macos-config-tools
 brew install macos-config-tools
 ```
 
-### Alternative Installation Methods
-
-### Quick Install Script
+### Using pip
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ocolunga/mct/main/install.sh | bash
+pip install macos-config-tools
 ```
 
-This will automatically:
-- Set up a `.mct` directory in your home folder
-- Install the required dependencies (including uv package manager)
-- Create a Python virtual environment
-- Install the package and make it available in your PATH
-- Create wrapper scripts for all commands
-
-After installation, restart your terminal or run:
+### Using uv
 ```bash
-source ~/.zshrc  # for zsh
-# or
-source ~/.bashrc  # for bash
+uv tool install macos-config-tools
 ```
 
-### Manual Installation
-
-### Using the install script
+### From source
 ```bash
-# Clone the repository
 git clone https://github.com/ocolunga/mct.git
 cd mct
-
-# Make the script executable and run it
-chmod +x install.sh
-./install.sh
-```
-
-The install script will:
-- Create a `.mct` directory in your home folder
-- Set up a virtual environment using the system Python
-- Install the package in development mode
-- Create wrapper scripts for all commands
-- Add the package commands to your PATH
-
-After installation, restart your terminal or source your shell configuration file:
-```bash
-source ~/.zshrc  # for zsh
-# or
-source ~/.bashrc  # for bash
-```
-
-### Alternative installation methods
-
-```bash
-# Install using uv
-uv tool install macos-config-tools
-
-# Or install using pip
-pip install macos-config-tools
+uv sync
+uv run mct --help
 ```
 
 ## Usage Examples

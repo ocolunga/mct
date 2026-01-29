@@ -29,7 +29,7 @@ app.add_typer(system_app, name="system", help="Manage system settings")
 
 def _version_callback(value: bool):
     if value:
-        version = importlib.metadata.version("mct")
+        version = importlib.metadata.version("macos-config-tools")
         typer.echo(f"mct version: {version}")
         raise typer.Exit()
 

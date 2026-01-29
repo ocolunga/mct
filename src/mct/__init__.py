@@ -1,3 +1,5 @@
 """macOS Configuration Tools - A CLI for managing macOS settings declaratively."""
 
-__version__ = "0.2.1"
+from importlib.metadata import version
+
+__version__ = version("macos-config-tools")
