@@ -65,10 +65,10 @@ Planned features:
 ### Using Homebrew (recommended)
 ```bash
 # Add the tap repository
-brew tap ocolunga/mct
+brew tap ocolunga/macos-config-tools
 
-# Install mct
-brew install mct
+# Install macos-config-tools
+brew install macos-config-tools
 ```
 
 ### Alternative Installation Methods
@@ -123,10 +123,10 @@ source ~/.bashrc  # for bash
 
 ```bash
 # Install using uv
-uv pip install mct
+uv tool install macos-config-tools
 
 # Or install using pip
-pip install mct
+pip install macos-config-tools
 ```
 
 ## Usage Examples
