@@ -1,6 +1,6 @@
 [project]
 name = "mct-cli"
-version = "0.2.9"
+version = "0.2.10"
 authors = [{ name = "Oscar Colunga", email = "oscar@ancile.dev" }]
 description = "macOS Configuration Tools"
 readme = "README.md"
