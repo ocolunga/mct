@@ -187,7 +187,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          BOTTLE=$(find . -name "*.bottle.tar.gz" | head -1)
+          BOTTLE=$(find . -name "*.bottle*.tar.gz" | head -1)
           echo "Found bottle: $BOTTLE"
           gh release upload "${{ steps.version.outputs.tag }}" "$BOTTLE" --repo ${{ github.repository }}
 
@@ -195,7 +195,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: bottle-json-${{ matrix.os }}
-          path: "**/*.bottle.json"
+          path: "**/*.bottle*.json"
 
   update-bottle-formula:
     needs: build-bottles

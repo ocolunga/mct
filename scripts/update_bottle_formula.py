@@ -9,25 +9,35 @@ TAG_ORDER = ["arm64_tahoe", "arm64_sequoia"]
 
 
 def collect_bottles(bottles_dir):
-    """Return {tag: {sha256, cellar}} from all .bottle.json files in the directory."""
-    bottles = {}
-    for json_file in Path(bottles_dir).glob("*.bottle.json"):
+    """Return (tags, root_url, rebuild) from all .bottle.json files in the directory."""
+    tags = {}
+    root_url = None
+    rebuild = 0
+    for json_file in Path(bottles_dir).glob("*.bottle*.json"):
         data = json.loads(json_file.read_text())
         for formula_info in data.values():
-            for tag, tag_data in formula_info["bottle"]["tags"].items():
-                bottles[tag] = {
+            bottle = formula_info["bottle"]
+            if root_url is None:
+                root_url = bottle.get("root_url")
+            rebuild = max(rebuild, bottle.get("rebuild", 0))
+            for tag, tag_data in bottle["tags"].items():
+                tags[tag] = {
                     "sha256": tag_data["sha256"],
                     "cellar": tag_data.get("cellar", ":any_skip_relocation"),
                 }
-    return bottles
+    return tags, root_url, rebuild
 
 
-def build_bottle_block(bottles):
+def build_bottle_block(tags, root_url, rebuild):
     lines = ["  bottle do\n"]
+    if root_url:
+        lines.append(f'    root_url "{root_url}"\n')
+    if rebuild:
+        lines.append(f'    rebuild {rebuild}\n')
     for tag in TAG_ORDER:
-        if tag in bottles:
-            cellar = bottles[tag]["cellar"]
-            sha256 = bottles[tag]["sha256"]
+        if tag in tags:
+            cellar = tags[tag]["cellar"]
+            sha256 = tags[tag]["sha256"]
             padding = " " * (14 - len(tag))
             lines.append(f'    sha256 cellar: {cellar}, {tag}:{padding}"{sha256}"\n')
     lines.append("  end\n")
@@ -35,8 +45,8 @@ def build_bottle_block(bottles):
 
 
 def update_formula(formula_path, bottles_dir):
-    bottles = collect_bottles(bottles_dir)
-    if not bottles:
+    tags, root_url, rebuild = collect_bottles(bottles_dir)
+    if not tags:
         raise RuntimeError(f"No .bottle.json files found in {bottles_dir}")
 
     content = Path(formula_path).read_text()
@@ -45,7 +55,7 @@ def update_formula(formula_path, bottles_dir):
     content = re.sub(r'\n  bottle do\n.*?  end\n', '\n', content, flags=re.DOTALL)
 
     # Insert after license line
-    bottle_block = "\n" + build_bottle_block(bottles)
+    bottle_block = "\n" + build_bottle_block(tags, root_url, rebuild)
     content = re.sub(r'(  license ".*"\n)', r'\1' + bottle_block, content)
 
     Path(formula_path).write_text(content)
