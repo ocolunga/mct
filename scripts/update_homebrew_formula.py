@@ -4,6 +4,7 @@ import json
 import re
 import subprocess
 import sys
+import time
 import urllib.request
 
 PACKAGE = "mct-cli"
@@ -23,14 +24,28 @@ def sdist_url_sha256(name, version):
     raise RuntimeError(f"No sdist for {name}=={version}")
 
 
-def get_deps(package, version):
-    """Return {name: version} for all transitive pip deps (excluding the package itself)."""
-    result = subprocess.run(
-        [sys.executable, "-m", "pip", "install",
-         "--dry-run", "--ignore-installed", "--quiet",
-         "--report", "-", f"{package}=={version}"],
-        capture_output=True, text=True, check=True,
-    )
+def get_deps(package, version, retries=20, delay=15):
+    """Return {name: version} for all transitive pip deps (excluding the package itself).
+
+    Retries because pip's simple index propagates slower than the PyPI JSON API.
+    """
+    for attempt in range(1, retries + 1):
+        try:
+            result = subprocess.run(
+                [sys.executable, "-m", "pip", "install",
+                 "--dry-run", "--ignore-installed", "--quiet",
+                 "--report", "-", f"{package}=={version}"],
+                capture_output=True, text=True, check=True,
+            )
+            break
+        except subprocess.CalledProcessError as e:
+            if attempt == retries:
+                print(f"pip stderr:\n{e.stderr}", file=sys.stderr)
+                raise
+            print(f"pip failed (attempt {attempt}/{retries}), retrying in {delay}s...")
+            if e.stderr:
+                print(f"  {e.stderr.strip()}", file=sys.stderr)
+            time.sleep(delay)
     report = json.loads(result.stdout)
     pkg_names = {package.lower(), package.replace("-", "_").lower()}
     return {
