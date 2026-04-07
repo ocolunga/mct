@@ -114,54 +114,27 @@ jobs:
           done
           echo "Warning: Timed out waiting for PyPI, continuing anyway..."
 
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
       - name: Set up Homebrew
-        uses: Homebrew/actions/setup-homebrew@master
+        uses: Homebrew/actions/setup-homebrew@main
 
-      - name: Get PyPI package URL and SHA256
-        id: pypi
+      - name: Tap formula repo
+        run: brew tap ocolunga/mct-cli
+
+      - name: Update formula
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          # Fetch package info from PyPI
-          PYPI_JSON=$(curl -s "https://pypi.org/pypi/mct-cli/$VERSION/json")
-
-          # Extract the sdist (source distribution) URL and SHA256
-          URL=$(echo "$PYPI_JSON" | python3 -c "import sys, json; urls = json.load(sys.stdin)['urls']; sdist = next(u for u in urls if u['packagetype'] == 'sdist'); print(sdist['url'])")
-          SHA256=$(echo "$PYPI_JSON" | python3 -c "import sys, json; urls = json.load(sys.stdin)['urls']; sdist = next(u for u in urls if u['packagetype'] == 'sdist'); print(sdist['digests']['sha256'])")
-
-          echo "url=$URL" >> $GITHUB_OUTPUT
-          echo "sha256=$SHA256" >> $GITHUB_OUTPUT
-          echo "Package URL: $URL"
-          echo "SHA256: $SHA256"
-
-      - name: Tap and update formula
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          SHA256="${{ steps.pypi.outputs.sha256 }}"
-          URL="${{ steps.pypi.outputs.url }}"
-
-          # Tap the repo (installs to proper Homebrew location)
-          brew tap ocolunga/mct-cli
-
-          # Get the tap directory
           TAP_DIR="$(brew --prefix)/Library/Taps/ocolunga/homebrew-mct-cli"
-          FORMULA="$TAP_DIR/Formula/mct-cli.rb"
-
-          # Update URL and SHA256
-          sed -i '' "s|url \".*\"|url \"${URL}\"|" "$FORMULA"
-          sed -i '' "s|sha256 \".*\"|sha256 \"${SHA256}\"|" "$FORMULA"
-
+          python scripts/update_homebrew_formula.py "$VERSION" "$TAP_DIR/Formula/mct-cli.rb"
           echo "Updated formula:"
-          cat "$FORMULA"
-
-      - name: Update Python resource dependencies
-        run: |
-          echo "Updating Python resources..."
-          for i in {1..6}; do
-            brew update-python-resources ocolunga/mct-cli/mct-cli && break
-            echo "Attempt $i/6 failed, waiting 30s for PyPI to propagate..."
-            sleep 30
-          done
-          echo "Resources updated successfully"
+          cat "$TAP_DIR/Formula/mct-cli.rb"
 
       - name: Commit and push
         env:
