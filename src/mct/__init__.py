@@ -2,4 +2,4 @@
 
 from importlib.metadata import version
 
-__version__ = version("macos-config-tools")
+__version__ = version("mct-cli")
