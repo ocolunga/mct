@@ -156,7 +156,11 @@ jobs:
       - name: Update Python resource dependencies
         run: |
           echo "Updating Python resources..."
-          brew update-python-resources ocolunga/mct-cli/mct-cli
+          for i in {1..6}; do
+            brew update-python-resources ocolunga/mct-cli/mct-cli && break
+            echo "Attempt $i/6 failed, waiting 30s for PyPI to propagate..."
+            sleep 30
+          done
           echo "Resources updated successfully"
 
       - name: Commit and push
