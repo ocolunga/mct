@@ -158,7 +158,7 @@ jobs:
       contents: write
     strategy:
       matrix:
-        os: [macos-15, macos-14]
+        os: [macos-26, macos-15]
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -188,8 +188,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           BOTTLE=$(find . -name "*.bottle*.tar.gz" | head -1)
-          echo "Found bottle: $BOTTLE"
-          gh release upload "${{ steps.version.outputs.tag }}" "$BOTTLE" --repo ${{ github.repository }}
+          RENAMED="${BOTTLE/--/-}"
+          mv "$BOTTLE" "$RENAMED"
+          echo "Uploading: $RENAMED"
+          gh release upload "${{ steps.version.outputs.tag }}" "$RENAMED" --repo ${{ github.repository }}
 
       - name: Upload bottle JSON as artifact
         uses: actions/upload-artifact@v4
