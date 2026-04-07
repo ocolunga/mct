@@ -151,3 +151,89 @@ jobs:
           git add Formula/mct-cli.rb
           git diff --staged --quiet || git commit -m "Update mct-cli to ${{ steps.version.outputs.version }}"
           git push
+
+  build-bottles:
+    needs: update-homebrew
+    permissions:
+      contents: write
+    strategy:
+      matrix:
+        os: [macos-15, macos-14]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG="${{ inputs.tag || github.ref_name }}"
+          VERSION="${TAG#v}"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Set up Homebrew
+        uses: Homebrew/actions/setup-homebrew@main
+
+      - name: Tap formula repo
+        run: brew tap ocolunga/mct-cli
+
+      - name: Build bottle
+        run: |
+          brew install --build-bottle ocolunga/mct-cli/mct-cli
+          brew bottle --json \
+            --root-url "https://github.com/ocolunga/mct/releases/download/${{ steps.version.outputs.tag }}" \
+            ocolunga/mct-cli/mct-cli
+
+      - name: Upload bottle tarball to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ steps.version.outputs.tag }}" *.bottle.tar.gz --repo ${{ github.repository }}
+
+      - name: Upload bottle JSON as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bottle-json-${{ matrix.os }}
+          path: "*.bottle.json"
+
+  update-bottle-formula:
+    needs: build-bottles
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG="${{ inputs.tag || github.ref_name }}"
+          VERSION="${TAG#v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Checkout mct repo (for script)
+        uses: actions/checkout@v6
+
+      - name: Checkout homebrew tap
+        uses: actions/checkout@v6
+        with:
+          repository: ocolunga/homebrew-mct-cli
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Download bottle JSON artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: bottles
+          merge-multiple: true
+          pattern: bottle-json-*
+
+      - name: Update formula with bottle block
+        run: |
+          python scripts/update_bottle_formula.py bottles/ homebrew-tap/Formula/mct-cli.rb
+          echo "Updated formula:"
+          cat homebrew-tap/Formula/mct-cli.rb
+
+      - name: Commit and push
+        run: |
+          cd homebrew-tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/mct-cli.rb
+          git diff --staged --quiet || git commit -m "Add bottles for ${{ steps.version.outputs.version }}"
+          git push
